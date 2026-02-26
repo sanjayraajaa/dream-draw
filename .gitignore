@@ -29,6 +29,7 @@ release/
 dist/
 out/
 build/
+dist-electron/
 
 # Electron cache
 .cache/
