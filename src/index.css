@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Courier+Prime&display=swap');
+
+:root {
+  --bg-primary: #121212;
+  --bg-secondary: #1e1e1e;
+  --bg-tertiary: #2d2d2d;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --accent: #646cff;
+  --accent-hover: #7b82ff;
+  --border: #333333;
+  --screenplay-width: 850px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Toolbar at top, main area below */
+}
+
+.layout-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Screenplay Block Styles */
+.block-scene_heading {
+  text-transform: uppercase;
+  font-weight: bold;
+  margin-top: 2em;
+  margin-bottom: 1em;
+}
+
+.block-action {
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+.block-character {
+  text-transform: uppercase;
+  margin-left: 20%;
+  width: 60%;
+  margin-top: 1em;
+  margin-bottom: 0;
+}
+
+.block-parenthetical {
+  margin-left: 15%;
+  width: 50%;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.block-dialogue {
+  margin-left: 10%;
+  width: 70%;
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+.block-transition {
+  text-transform: uppercase;
+  margin-left: 60%;
+  margin-top: 2em;
+  margin-bottom: 2em;
+}
+
+.editor-block {
+  outline: none;
+  min-height: 1.5em;
+  /* To show empty blocks */
+  position: relative;
+}
+
+.editor-block[data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: var(--text-secondary);
+  pointer-events: none;
+  opacity: 0.5;
+}
