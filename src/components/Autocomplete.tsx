@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { FC } from 'react';
-import { useFloating, flip, shift, offset } from '@floating-ui/react';
 import { useCombobox } from 'downshift';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -20,27 +19,38 @@ export const Autocomplete: FC<AutocompleteProps> = ({
     onSelect,
     onClose
 }) => {
-    // Use Floating UI to position the popup relative to the active block
-    const { refs, floatingStyles, x, y } = useFloating({
-        placement: 'bottom-start',
-        strategy: 'fixed',
-        middleware: [
-            offset(8), // 8px gap
-            flip(),    // Flip to top if not enough space
-            shift({ padding: 8 }) // Shift horizontally to stay strictly on screen
-        ]
-    });
+    const menuRef = useRef<HTMLDivElement | null>(null);
+    const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
 
-    useEffect(() => {
-        if (anchorRect) {
-            refs.setReference({
-                getBoundingClientRect: () => anchorRect,
-                getClientRects: () => [anchorRect] as unknown as DOMRectList
-            } as Element);
-        } else {
-            refs.setReference(null);
+    useLayoutEffect(() => {
+        if (!isOpen || options.length === 0 || !anchorRect) {
+            setMenuPos(null);
+            return;
         }
-    }, [anchorRect, refs]);
+
+        const viewportPadding = 10;
+        const estimatedWidth = menuRef.current?.offsetWidth ?? 260;
+        const estimatedHeight = menuRef.current?.offsetHeight ?? Math.min(options.length * 40 + 12, 240);
+
+        let left = anchorRect.left;
+        let top = anchorRect.bottom + 8;
+
+        if (left + estimatedWidth > window.innerWidth - viewportPadding) {
+            left = window.innerWidth - estimatedWidth - viewportPadding;
+        }
+        if (left < viewportPadding) {
+            left = viewportPadding;
+        }
+
+        if (top + estimatedHeight > window.innerHeight - viewportPadding) {
+            top = anchorRect.top - estimatedHeight - 8;
+        }
+        if (top < viewportPadding) {
+            top = viewportPadding;
+        }
+
+        setMenuPos({ left, top });
+    }, [isOpen, options, anchorRect]);
 
     const {
         getMenuProps,
@@ -108,17 +118,22 @@ export const Autocomplete: FC<AutocompleteProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [isOpen, options, highlightedIndex, onSelect, onClose, setHighlightedIndex]);
 
-    const isPositionComputed = x !== null && y !== null;
+    const isPositionComputed = menuPos !== null;
 
     return createPortal(
         <AnimatePresence>
             {(isOpen && options.length > 0 && isPositionComputed) && (
                 <motion.div
-                    ref={refs.setFloating}
-                    style={floatingStyles}
-                    initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                    ref={menuRef}
+                    style={{
+                        position: 'fixed',
+                        left: menuPos?.left ?? 0,
+                        top: menuPos?.top ?? 0,
+                        zIndex: 10000
+                    }}
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
                     transition={{ duration: 0.15, ease: "easeOut" }}
                     className="autocomplete-popup"
                 >
@@ -128,15 +143,13 @@ export const Autocomplete: FC<AutocompleteProps> = ({
                             margin: 0,
                             padding: '4px',
                             listStyle: 'none',
-                            backgroundColor: 'rgba(30, 30, 30, 0.85)',
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-                            maxHeight: '200px',
+                            background: 'linear-gradient(180deg, rgba(20,20,20,0.98) 0%, rgba(14,14,14,0.98) 100%)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '10px',
+                            boxShadow: '0 14px 40px rgba(0, 0, 0, 0.55)',
+                            maxHeight: '220px',
                             overflowY: 'auto',
-                            minWidth: '200px',
+                            minWidth: '240px',
                             fontFamily: "'Inter', sans-serif"
                         }}
                     >

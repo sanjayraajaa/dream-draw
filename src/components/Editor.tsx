@@ -28,7 +28,7 @@ const EditorBlock = ({
     block: Block;
     index: number;
     onKeyDown: (e: KeyboardEvent<HTMLDivElement>, index: number) => void;
-    onInput: (text: string, index: number) => void;
+    onInput: (text: string, index: number, el: HTMLDivElement) => void;
     onFocus: (id: string) => void;
     setRef: (id: string, el: HTMLElement | null) => void;
 }) => {
@@ -52,7 +52,7 @@ const EditorBlock = ({
             suppressContentEditableWarning
             data-placeholder={block.type.replace('_', ' ').toUpperCase()}
             onKeyDown={(e) => onKeyDown(e, index)}
-            onInput={(e) => onInput(e.currentTarget.textContent || '', index)}
+            onInput={(e) => onInput(e.currentTarget.textContent || '', index, e.currentTarget)}
             onFocus={() => onFocus(block.id)}
         />
     );
@@ -104,6 +104,71 @@ export const Editor = ({ blocks, setBlocks }: EditorProps) => {
             setShouldFocus(false);
         }
     }, [focusedId, shouldFocus]);
+
+    const toAnchorRect = (rect: DOMRect) => ({
+        x: rect.x,
+        y: rect.y,
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        height: rect.height
+    });
+
+    const getLineAnchorRect = (editableEl: HTMLDivElement) => {
+        const blockRect = editableEl.getBoundingClientRect();
+        const computed = window.getComputedStyle(editableEl);
+        const lineHeight = Number.parseFloat(computed.lineHeight || '0') || 22;
+
+        // Use a thin virtual caret at the start of the active line.
+        return {
+            x: blockRect.left,
+            y: blockRect.top,
+            top: blockRect.top,
+            bottom: blockRect.top + lineHeight,
+            left: blockRect.left,
+            right: blockRect.left + 1,
+            width: 1,
+            height: lineHeight
+        };
+    };
+
+    const getAnchorRect = (editableEl: HTMLDivElement) => {
+        const lineRect = getLineAnchorRect(editableEl);
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            if (editableEl.contains(range.startContainer)) {
+                let caretRect = range.getBoundingClientRect();
+
+                // Collapsed ranges can report zero dimensions; sample the previous character rect.
+                if (caretRect.width === 0 && caretRect.height === 0 && range.collapsed && range.startOffset > 0) {
+                    const probe = range.cloneRange();
+                    probe.setStart(range.startContainer, range.startOffset - 1);
+                    probe.setEnd(range.startContainer, range.startOffset);
+                    const probeRect = probe.getBoundingClientRect();
+                    if (probeRect.width !== 0 || probeRect.height !== 0) {
+                        caretRect = probeRect;
+                    }
+                }
+
+                const isZeroRect = caretRect.left === 0 && caretRect.top === 0 && caretRect.width === 0 && caretRect.height === 0;
+                const isNearActiveBlock =
+                    caretRect.left >= lineRect.left - 8 &&
+                    caretRect.left <= lineRect.left + editableEl.getBoundingClientRect().width + 8 &&
+                    caretRect.top >= lineRect.top - 40 &&
+                    caretRect.top <= lineRect.bottom + 40;
+
+                if (!isZeroRect && isNearActiveBlock && (caretRect.width !== 0 || caretRect.height !== 0)) {
+                    return toAnchorRect(caretRect);
+                }
+            }
+        }
+
+        // Stable fallback: align popup to current typing line, never top-left of viewport.
+        return lineRect;
+    };
 
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>, index: number) => {
         const block = blocks[index];
@@ -170,7 +235,7 @@ export const Editor = ({ blocks, setBlocks }: EditorProps) => {
         }
     };
 
-    const handleInput = (text: string, index: number) => {
+    const handleInput = (text: string, index: number, editableEl: HTMLDivElement) => {
         const newBlocks = [...blocks];
         newBlocks[index].content = text;
         setBlocks(newBlocks);
@@ -181,7 +246,7 @@ export const Editor = ({ blocks, setBlocks }: EditorProps) => {
             const upperText = text.toUpperCase();
             let matchedOptions: string[] = [];
             let matchStart = 0;
-            let matchEnd = text.length;
+            const matchEnd = text.length;
 
             // 1. Prefix: Empty or typing "I", "E"
             if (upperText.length < 5 && !upperText.includes('.')) {
@@ -210,42 +275,17 @@ export const Editor = ({ blocks, setBlocks }: EditorProps) => {
             }
 
             if (matchedOptions.length > 0) {
-                // Get Caret Rect robustly
-                const selection = window.getSelection();
-                if (selection && selection.rangeCount > 0) {
-                    const range = selection.getRangeAt(0);
-                    let rect = range.getBoundingClientRect();
-
-                    // Fallback for empty/collapsed zero-width rects or zero-x (sometimes happens on empty elements)
-                    if (rect.x === 0 && rect.y === 0) {
-                        const span = document.createElement('span');
-                        span.textContent = '\u200b';
-                        range.insertNode(span);
-                        rect = span.getBoundingClientRect();
-                        span.parentNode?.removeChild(span);
-                    }
-
-                    if (rect.x !== 0 || rect.y !== 0) {
-                        setAcAnchorRect({
-                            x: rect.x,
-                            y: rect.y,
-                            top: rect.top,
-                            bottom: rect.bottom,
-                            left: rect.left,
-                            right: rect.right,
-                            width: rect.width,
-                            height: rect.height
-                        });
-                    }
-                }
+                setAcAnchorRect(getAnchorRect(editableEl));
                 setAcOptions(matchedOptions);
                 setAcMatchRange({ start: matchStart, end: matchEnd });
                 setAcShow(true);
             } else {
                 setAcShow(false);
+                setAcAnchorRect(null);
             }
         } else {
             setAcShow(false);
+            setAcAnchorRect(null);
         }
     };
 
@@ -262,6 +302,7 @@ export const Editor = ({ blocks, setBlocks }: EditorProps) => {
         newBlocks[index].content = newText;
         setBlocks(newBlocks);
         setAcShow(false);
+        setAcAnchorRect(null);
 
         // Re-focus and set caret to end
         setShouldFocus(true);
